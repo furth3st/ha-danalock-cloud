@@ -1,5 +1,6 @@
 """Config flow for Danalock Cloud integration."""
 import logging
+from time import time
 from typing import Any, Dict, Optional
 
 import voluptuous as vol
@@ -21,6 +22,7 @@ from .const import (
     ACCESS_TOKEN,
     REFRESH_TOKEN,
     TOKEN_EXPIRES_AT,
+    EXPIRES_IN,
     UPDATE_INTERVAL,
     CONF_OPTIMISTIC_MODE, # Import new constant
 )
@@ -87,7 +89,8 @@ class DanalockConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_PASSWORD: password,
                     ACCESS_TOKEN: auth_result[ACCESS_TOKEN],
                     REFRESH_TOKEN: auth_result[REFRESH_TOKEN],
-                    TOKEN_EXPIRES_AT: auth_result[TOKEN_EXPIRES_AT],
+                    TOKEN_EXPIRES_AT: auth_result.get(TOKEN_EXPIRES_AT)
+                    or (time() + float(auth_result.get(EXPIRES_IN, 3600))),
                 }
                 return self.async_create_entry(
                     title=username, data=entry_data
