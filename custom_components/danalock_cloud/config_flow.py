@@ -60,7 +60,7 @@ class DanalockConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> "DanalockOptionsFlowHandler":
         """Get the options flow for this handler."""
-        return DanalockOptionsFlowHandler(config_entry)
+        return DanalockOptionsFlowHandler()
 
     # ... (async_step_user and async_step_reauth remain unchanged) ...
     async def async_step_user(
@@ -166,9 +166,8 @@ class DanalockConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class DanalockOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle a Danalock options flow."""
 
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize options flow."""
-        self.config_entry = config_entry
+    # config_entry is provided as a read-only property by OptionsFlow
+    # (assigning it in __init__ is rejected by HA >= 2025.12)
 
     async def async_step_init(self, user_input: Optional[Dict[str, Any]] = None) -> config_entries.FlowResult:
         """Manage the options."""
