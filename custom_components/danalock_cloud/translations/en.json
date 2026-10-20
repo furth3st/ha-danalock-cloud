@@ -1,0 +1,60 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Danalock Cloud",
+        "description": "Sign in with the Danalock account that owns the lock and the Danabridge V3.",
+        "data": {
+          "username": "Username",
+          "password": "Password",
+          "totp": "2FA code (only if two-factor authentication is enabled)"
+        },
+        "data_description": {
+          "totp": "Leave empty if you don't use two-factor authentication. The code is only used once to sign in; it is never stored."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate Danalock",
+        "description": "Danalock no longer accepts the saved login for {username}. Enter the current password.",
+        "data": {
+          "password": "Password",
+          "totp": "2FA code (only if two-factor authentication is enabled)"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Danalock rejected the login. Check the e-mail and password for typos or stray spaces. If your account has two-factor authentication, enter the current 6-digit code. Accounts created with Google/Apple sign-in have no Danalock password - set one at my.danalock.com first.",
+      "cannot_connect": "Could not reach Danalock. Check your internet connection and try again.",
+      "unknown": "Unexpected error. See the Home Assistant log for details."
+    },
+    "abort": {
+      "already_configured": "This Danalock account is already configured.",
+      "reauth_successful": "Re-authentication was successful."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Danalock Cloud options",
+        "description": "Polling interval and optimistic updates. Optimistic mode updates the UI instantly and rolls back if the command fails.",
+        "data": {
+          "update_interval": "Update interval (minutes)",
+          "optimistic_mode": "Optimistic state updates"
+        }
+      }
+    }
+  },
+  "services": {
+    "refresh_devices": {
+      "name": "Refresh devices",
+      "description": "Immediately re-read the state, battery, settings and firmware of all Danalock locks (e.g. after installing a firmware update in the Danalock app)."
+    }
+  },
+  "entity": {
+    "update": {
+      "firmware": {
+        "name": "Firmware"
+      }
+    }
+  }
+}

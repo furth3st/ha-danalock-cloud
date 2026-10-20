@@ -1,197 +1,137 @@
-# custom_components/danalock_cloud/__init__.py
-
 """The Danalock Cloud integration."""
+from __future__ import annotations
+
 import asyncio
 import logging
-from time import time
-from typing import Any, Dict, List, Optional
 from datetime import timedelta
+from pathlib import Path
 
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_USERNAME, Platform, CONF_PASSWORD
-from homeassistant.core import HomeAssistant, ServiceCall, callback
-from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from homeassistant.helpers.typing import ConfigType
-import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
 
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.typing import ConfigType
+from homeassistant.loader import async_get_integration
 
-from .api import (
-    DanalockApiClient,
-    DanalockApiAuthError,
-    DanalockApiClientError,
-)
+from .api import DanalockApiClient, DanalockApiClientError
 from .const import (
+    ACCESS_TOKEN,
+    CONF_PASSWORD,
+    CONF_UPDATE_INTERVAL,
+    CONF_USERNAME,
     DOMAIN,
     PLATFORMS,
-    ACCESS_TOKEN,
     REFRESH_TOKEN,
-    TOKEN_EXPIRES_AT,
-    LOCK_SERIAL,
-    LOCK_NAME,
-    UPDATE_INTERVAL,
     SERVICE_REFRESH_DEVICES,
+    TOKEN_EXPIRES_AT,
+    UPDATE_INTERVAL,
 )
 from .coordinator import DanalockDataUpdateCoordinator
 
-
 _LOGGER = logging.getLogger(__name__)
 
-SERVICE_REFRESH_SCHEMA = vol.Schema({})
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+DEFAULT_UPDATE_MINUTES = int(UPDATE_INTERVAL.total_seconds() / 60)
+CARD_FILENAME = "danalock-lock-card.js"
+CARD_URL = f"/{DOMAIN}/{CARD_FILENAME}"
+
+
+async def _async_register_card(hass: HomeAssistant) -> None:
+    """Serve the lock card and load it in every dashboard (no manual resource needed).
+
+    Purely cosmetic: any problem here is logged and never blocks the integration.
+    """
+    if getattr(hass, "http", None) is None or "frontend" not in hass.config.components:
+        return
+    try:
+        from homeassistant.components.frontend import add_extra_js_url
+        from homeassistant.components.http import StaticPathConfig
+
+        integration = await async_get_integration(hass, DOMAIN)
+        path = Path(__file__).parent / "frontend" / CARD_FILENAME
+        await hass.http.async_register_static_paths([StaticPathConfig(CARD_URL, str(path), True)])
+        add_extra_js_url(hass, f"{CARD_URL}?v={integration.version}")
+    except Exception:  # noqa: BLE001 - the card must never break the lock integration
+        _LOGGER.warning("Could not register the Danalock lock card", exc_info=True)
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Set up the Danalock Cloud component."""
+    """Register the integration-wide refresh service once."""
     hass.data.setdefault(DOMAIN, {})
+
+    async def handle_refresh_devices(call: ServiceCall) -> None:
+        coordinators = [
+            data["coordinator"]
+            for data in hass.data.get(DOMAIN, {}).values()
+            if isinstance(data, dict) and "coordinator" in data
+        ]
+        await asyncio.gather(*(c.async_refresh_everything() for c in coordinators))
+
+    hass.services.async_register(
+        DOMAIN, SERVICE_REFRESH_DEVICES, handle_refresh_devices, schema=vol.Schema({})
+    )
+    await _async_register_card(hass)
     return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Danalock Cloud from a config entry."""
-    _LOGGER.info("Setting up Danalock Cloud entry for %s (%s)", entry.title, entry.entry_id)
-
-    username = entry.data[CONF_USERNAME]
-    password = entry.data.get(CONF_PASSWORD)
-    access_token = entry.data.get(ACCESS_TOKEN)
-    refresh_token = entry.data.get(REFRESH_TOKEN)
-    token_expires_at = entry.data.get(TOKEN_EXPIRES_AT)
-
     api_client = DanalockApiClient(
         hass,
-        entry=entry, # Pass the config entry itself
-        username=username,
-        password=password,
-        access_token=access_token,
-        refresh_token=refresh_token,
-        token_expires_at=token_expires_at,
+        entry=entry,
+        username=entry.data[CONF_USERNAME],
+        password=entry.data.get(CONF_PASSWORD),
+        access_token=entry.data.get(ACCESS_TOKEN),
+        refresh_token=entry.data.get(REFRESH_TOKEN),
+        token_expires_at=entry.data.get(TOKEN_EXPIRES_AT),
     )
 
     try:
-        _LOGGER.debug("[%s] Ensuring token validity or attempting initial auth.", entry.entry_id)
-        await api_client._ensure_token_valid()
-
-        _LOGGER.debug("[%s] Fetching initial list of locks.", entry.entry_id)
+        await api_client.async_ensure_token_valid()
         locks = await api_client.get_locks()
-        if not locks:
-            _LOGGER.warning("[%s] No Danalock locks found for account %s.", entry.entry_id, username)
+    except ConfigEntryAuthFailed:
+        raise  # Home Assistant shows a "re-authenticate" repair; no retries, no lockout
+    except DanalockApiClientError as err:
+        raise ConfigEntryNotReady(f"Danalock is not reachable right now: {err}") from err
 
-    except ConfigEntryAuthFailed as err:
-        _LOGGER.error("[%s] Authentication failed during setup: %s", entry.entry_id, err)
-        raise
-    except (DanalockApiClientError, Exception) as err:
-        _LOGGER.error("[%s] Failed to connect or get locks during setup: %s", entry.entry_id, err, exc_info=True)
-        raise ConfigEntryNotReady(f"Failed to initialize Danalock API: {err}") from err
-
-    update_interval_minutes = entry.options.get(
-        "update_interval", int(UPDATE_INTERVAL.total_seconds() / 60)
-    )
+    if not locks:
+        _LOGGER.warning("No Danalock locks found for %s", entry.title)
 
     coordinator = DanalockDataUpdateCoordinator(
         hass,
         config_entry=entry,
         api_client=api_client,
-        locks=locks or [],
-        update_interval_minutes=update_interval_minutes,
+        locks=locks,
+        update_interval_minutes=entry.options.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_MINUTES),
     )
-
-    _LOGGER.debug("[%s] Performing initial data refresh.", entry.entry_id)
     await coordinator.async_config_entry_first_refresh()
-    if not coordinator.last_update_success and isinstance(coordinator.last_exception, ConfigEntryAuthFailed):
-         _LOGGER.error("[%s] Initial data refresh failed authentication.", entry.entry_id)
-         raise coordinator.last_exception
 
-    hass.data[DOMAIN][entry.entry_id] = {
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         "api_client": api_client,
         "coordinator": coordinator,
-        "locks": locks or [],
+        "locks": locks,
     }
-
-    _LOGGER.debug("[%s] Forwarding setup to platforms: %s", entry.entry_id, PLATFORMS)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-
-    entry.async_on_unload(entry.add_update_listener(options_update_listener))
-
-    if not hass.services.has_service(DOMAIN, SERVICE_REFRESH_DEVICES):
-        _LOGGER.info("Registering service: %s.%s", DOMAIN, SERVICE_REFRESH_DEVICES)
-
-        async def handle_refresh_devices(call: ServiceCall) -> None:
-            """Handle the service call to refresh device data for all configured entries."""
-            _LOGGER.info("Service %s.%s called, forcing data refresh for all entries", DOMAIN, SERVICE_REFRESH_DEVICES)
-            coordinators = [
-                entry_data["coordinator"]
-                for entry_id, entry_data in hass.data.get(DOMAIN, {}).items()
-                if "coordinator" in entry_data
-            ]
-            if not coordinators:
-                 _LOGGER.warning("Refresh service called, but no coordinators found.")
-                 return
-
-            await asyncio.gather(
-                *[coord.async_request_refresh() for coord in coordinators]
-            )
-            _LOGGER.info("Refresh requested for %d coordinator(s).", len(coordinators))
-
-        hass.services.async_register(
-            DOMAIN,
-            SERVICE_REFRESH_DEVICES,
-            handle_refresh_devices,
-            schema=SERVICE_REFRESH_SCHEMA,
-        )
-
-    _LOGGER.info("[%s] Danalock Cloud setup complete for %s", entry.entry_id, entry.title)
+    entry.async_on_unload(entry.add_update_listener(_async_options_updated))
     return True
+
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    entry_id = entry.entry_id
-    _LOGGER.info("Unloading Danalock Cloud entry for %s (%s)", entry.title, entry_id)
-
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-
     if unload_ok:
-        hass.data[DOMAIN].pop(entry_id, None)
-        _LOGGER.info("Danalock Cloud entry %s data removed.", entry_id)
-
-        if not any(e.domain == DOMAIN for e in hass.config_entries.async_loaded_entries(hass)):
-             _LOGGER.info("Last Danalock Cloud entry unloaded, removing service %s.%s", DOMAIN, SERVICE_REFRESH_DEVICES)
-             hass.services.async_remove(DOMAIN, SERVICE_REFRESH_DEVICES)
-
-    _LOGGER.info("Danalock Cloud entry %s unloaded result: %s", entry_id, unload_ok)
+        hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
     return unload_ok
 
-async def options_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Handle options update without reloading the entry."""
-    entry_id = entry.entry_id
-    _LOGGER.info("Danalock Cloud options updating for %s", entry_id)
 
-    if DOMAIN not in hass.data or entry_id not in hass.data.get(DOMAIN, {}):
-        _LOGGER.warning("[%s] Cannot apply options update - entry data not found in hass.data. Triggering reload.", entry_id)
-        await hass.config_entries.async_reload(entry_id)
+async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Apply a new polling interval live; other options are read on use."""
+    data = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if not data:
+        await hass.config_entries.async_reload(entry.entry_id)
         return
-
-    data = hass.data[DOMAIN][entry_id]
-    coordinator: Optional[DanalockDataUpdateCoordinator] = data.get("coordinator")
-
-    if not coordinator:
-        _LOGGER.error("[%s] Cannot apply options update - coordinator not found. Triggering reload.", entry_id)
-        await hass.config_entries.async_reload(entry_id)
-        return
-
-    update_interval_minutes = entry.options.get(
-        "update_interval", int(UPDATE_INTERVAL.total_seconds() / 60)
-    )
-    new_interval = timedelta(minutes=max(1, update_interval_minutes))
-
-    if coordinator.update_interval == new_interval:
-        _LOGGER.debug("[%s] Options updated, but update interval (%s) is unchanged.", entry_id, new_interval)
-        return
-
-    _LOGGER.info(
-        "[%s] Updating polling interval from %s to %s",
-        entry_id,
-        coordinator.update_interval,
-        new_interval
-    )
-    coordinator.update_interval = new_interval
-    _LOGGER.info("[%s] Successfully updated polling interval.", entry_id)
-
+    coordinator: DanalockDataUpdateCoordinator = data["coordinator"]
+    minutes = max(1, int(entry.options.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_MINUTES)))
+    coordinator.update_interval = timedelta(minutes=minutes)

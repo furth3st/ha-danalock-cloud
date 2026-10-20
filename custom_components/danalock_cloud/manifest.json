@@ -1,18 +1,21 @@
 {
-    "domain": "danalock_cloud",
-    "name": "Danalock Cloud",
-    "codeowners": ["@furth3st"],
-    "config_flow": true,
-    "dependencies": [],
-    "documentation": "https://github.com/furth3st/ha-danalock-cloud",
-    "iot_class": "cloud_polling",
-    "issue_tracker": "https://github.com/furth3st/ha-danalock-cloud/issues",
-    "loggers": ["custom_components.danalock_cloud"],
-    "requirements": ["aiohttp>=3.8.0"],
-    "version": "1.2.0",
-    "platforms": [
-      "lock",
-      "sensor"
-    ],
-     "integration_type": "device"
-  }
+  "domain": "danalock_cloud",
+  "name": "Danalock Cloud",
+  "after_dependencies": [
+    "frontend",
+    "http"
+  ],
+  "codeowners": [
+    "@furth3st"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/furth3st/ha-danalock-cloud",
+  "integration_type": "hub",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/furth3st/ha-danalock-cloud/issues",
+  "loggers": [
+    "custom_components.danalock_cloud"
+  ],
+  "requirements": [],
+  "version": "1.4.0"
+}

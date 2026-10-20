@@ -12,6 +12,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import DOMAIN, ACCESS_TOKEN, REFRESH_TOKEN, TOKEN_EXPIRES_AT, LOCK_NAME as DIAG_LOCK_NAME, LOCK_STATE as DIAG_LOCK_STATE, LOCK_BATTERY as DIAG_LOCK_BATTERY
+from .const import LOCK_FIRMWARE, LOCK_JAMMED, LOCK_LATEST_FIRMWARE, LOCK_SETTINGS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -54,9 +55,10 @@ async def async_get_config_entry_diagnostics(
     
     coordinator: Optional[DataUpdateCoordinator] = data.get("coordinator")
     if coordinator:
-        last_update_timestamp_iso = None
-        if coordinator.last_update_success_timestamp:
-            last_update_timestamp_iso = coordinator.last_update_success_timestamp.isoformat()
+        # A plain DataUpdateCoordinator has no success timestamp (only the Timestamp* variant
+        # does); reading it unguarded crashed "Download diagnostics" in every earlier release.
+        last_success = getattr(coordinator, "last_update_success_time", None)
+        last_update_timestamp_iso = last_success.isoformat() if last_success else None
         
         diag_data["coordinator"] = {
             "last_update_success": coordinator.last_update_success,
@@ -100,5 +102,25 @@ async def async_get_config_entry_diagnostics(
             "has_password_stored_in_client": bool(getattr(api_client, "_password", None)),
             "token_expiry_info": expiry_info,
         }
-            
+        # Bridge timing: the most useful thing when commands feel slow or fail now and then.
+        diag_data["bridge"] = {
+            "batch_supported": getattr(api_client, "_batch_supported", None),
+            "recent_jobs": list(getattr(api_client, "job_history", [])),
+        }
+
+    if coordinator and coordinator.data:
+        diag_data["locks"] = [
+            {
+                "state": item.get(DIAG_LOCK_STATE),
+                "state_fresh": item.get("state_fresh"),
+                "battery": item.get(DIAG_LOCK_BATTERY),
+                "settings": item.get(LOCK_SETTINGS),
+                "firmware": item.get(LOCK_FIRMWARE),
+                "latest_firmware": item.get(LOCK_LATEST_FIRMWARE),
+                "jammed": item.get(LOCK_JAMMED),
+            }
+            for item in coordinator.data.values()
+            if isinstance(item, dict)
+        ]
+
     return diag_data

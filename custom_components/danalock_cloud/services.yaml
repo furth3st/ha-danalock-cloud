@@ -1,4 +1,1 @@
 refresh_devices:
-  name: Refresh Devices
-  description: Forces an immediate refresh of all Danalock device states and battery levels from the cloud API for all configured accounts.
-  fields: {} # No fields needed for this service

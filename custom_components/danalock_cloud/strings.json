@@ -1,55 +1,60 @@
 {
-    "config": {
-      "step": {
-        "user": {
-          "title": "Danalock Cloud Credentials",
-          "description": "Enter your Danalock account username and password. This integration communicates via the Danalock Cloud API.\n\n**Important:** Ensure Two-Factor Authentication (2FA) is **disabled** on this account and that it is the **owner** account for the lock and bridge.",
-          "data": {
-            "username": "[%key:common::config_flow::data::username%]",
-            "password": "[%key:common::config_flow::data::password%]"
-          }
+  "config": {
+    "step": {
+      "user": {
+        "title": "Danalock Cloud",
+        "description": "Sign in with the Danalock account that owns the lock and the Danabridge V3.",
+        "data": {
+          "username": "[%key:common::config_flow::data::username%]",
+          "password": "[%key:common::config_flow::data::password%]",
+          "totp": "2FA code (only if two-factor authentication is enabled)"
         },
-        "reauth": {
-           "title": "[%key:common::config_flow::title::reauth%]",
-           "description": "Authentication for Danalock Cloud account '{username}' failed. Please enter the current password.",
-           "data": {
-             "password": "[%key:common::config_flow::data::password%]"
-           }
-         }
+        "data_description": {
+          "totp": "Leave empty if you don't use two-factor authentication. The code is only used once to sign in; it is never stored."
+        }
       },
-      "error": {
-        "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
-        "invalid_auth": "[%key:common::config_flow::error::invalid_auth%]",
-        "unknown": "[%key:common::config_flow::error::unknown%]"
-      },
-      "abort": {
-        "already_configured": "[%key:common::config_flow::abort::already_configured_account%]",
-        "reauth_successful": "[%key:common::config_flow::abort::reauth_successful%]"
+      "reauth_confirm": {
+        "title": "[%key:common::config_flow::title::reauth%]",
+        "description": "Danalock no longer accepts the saved login for {username}. Enter the current password.",
+        "data": {
+          "password": "[%key:common::config_flow::data::password%]",
+          "totp": "2FA code (only if two-factor authentication is enabled)"
+        }
       }
     },
-    "options": {
-      "step": {
-          "init": {
-              "title": "Danalock Cloud Options",
-              "description": "Adjust Danalock Cloud integration options. The optimistic state update provides instant UI feedback but may be temporarily inaccurate.",
-              "data": {
-                  "update_interval": "Update Interval (Minutes)",
-                  "optimistic_mode": "Use Optimistic State Updates"
-              }
-          }
-      }
+    "error": {
+      "invalid_auth": "Danalock rejected the login. Check the e-mail and password for typos or stray spaces. If your account has two-factor authentication, enter the current 6-digit code. Accounts created with Google/Apple sign-in have no Danalock password - set one at my.danalock.com first.",
+      "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
+      "unknown": "[%key:common::config_flow::error::unknown%]"
     },
-    "services": {
-        "refresh_devices": {
-            "name": "Refresh Devices",
-            "description": "Forces an immediate refresh of all Danalock device states and battery levels from the cloud API for all configured accounts."
-        }
-    },
-    "entity": {
-        "sensor": {
-            "battery": {
-                "name": "Battery"
-            }
-        }
+    "abort": {
+      "already_configured": "[%key:common::config_flow::abort::already_configured_account%]",
+      "reauth_successful": "[%key:common::config_flow::abort::reauth_successful%]"
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Danalock Cloud options",
+        "description": "Polling interval and optimistic updates. Optimistic mode updates the UI instantly and rolls back if the command fails.",
+        "data": {
+          "update_interval": "Update interval (minutes)",
+          "optimistic_mode": "Optimistic state updates"
+        }
+      }
+    }
+  },
+  "services": {
+    "refresh_devices": {
+      "name": "Refresh devices",
+      "description": "Immediately re-read the state, battery, settings and firmware of all Danalock locks (e.g. after installing a firmware update in the Danalock app)."
+    }
+  },
+  "entity": {
+    "update": {
+      "firmware": {
+        "name": "Firmware"
+      }
+    }
+  }
 }
