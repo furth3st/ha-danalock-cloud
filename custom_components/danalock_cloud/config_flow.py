@@ -1,5 +1,6 @@
 """Config flow for Danalock Cloud integration."""
 import logging
+from time import time
 from typing import Any, Dict, Optional
 
 import voluptuous as vol
@@ -21,6 +22,7 @@ from .const import (
     ACCESS_TOKEN,
     REFRESH_TOKEN,
     TOKEN_EXPIRES_AT,
+    EXPIRES_IN,
     UPDATE_INTERVAL,
     CONF_OPTIMISTIC_MODE, # Import new constant
 )
@@ -58,7 +60,7 @@ class DanalockConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> "DanalockOptionsFlowHandler":
         """Get the options flow for this handler."""
-        return DanalockOptionsFlowHandler(config_entry)
+        return DanalockOptionsFlowHandler()
 
     # ... (async_step_user and async_step_reauth remain unchanged) ...
     async def async_step_user(
@@ -87,7 +89,8 @@ class DanalockConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_PASSWORD: password,
                     ACCESS_TOKEN: auth_result[ACCESS_TOKEN],
                     REFRESH_TOKEN: auth_result[REFRESH_TOKEN],
-                    TOKEN_EXPIRES_AT: auth_result[TOKEN_EXPIRES_AT],
+                    TOKEN_EXPIRES_AT: auth_result.get(TOKEN_EXPIRES_AT)
+                    or (time() + float(auth_result.get(EXPIRES_IN, 3600))),
                 }
                 return self.async_create_entry(
                     title=username, data=entry_data
@@ -163,9 +166,8 @@ class DanalockConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class DanalockOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle a Danalock options flow."""
 
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize options flow."""
-        self.config_entry = config_entry
+    # config_entry is provided as a read-only property by OptionsFlow
+    # (assigning it in __init__ is rejected by HA >= 2025.12)
 
     async def async_step_init(self, user_input: Optional[Dict[str, Any]] = None) -> config_entries.FlowResult:
         """Manage the options."""
