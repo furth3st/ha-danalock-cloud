@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.1
+
+Security hardening, thanks to review feedback from @frenck.
+
+### Fixed
+- Downloaded diagnostics no longer include the config entry title, which is the Danalock account e-mail address.
+- The lock card now escapes the lock's state text and coerces the battery level to a plain number before putting them into the page, so a malformed or hostile entity value can't inject markup.
+
 ## 1.4.0
 
 Responsiveness and reliability release. Bridge behaviour is now modelled on the official my.danalock.com web app.

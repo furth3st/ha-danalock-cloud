@@ -11,7 +11,7 @@
  * shows that honestly: a progress ring sized from how long this lock usually takes, the
  * real failure reason when it fails, and how fresh the shown state is.
  */
-const CARD_VERSION = "1.4.0";
+const CARD_VERSION = "1.4.1";
 const ERROR_VISIBLE_MS = 120000;
 const CONFIRM_WINDOW_MS = 4000;
 
@@ -218,9 +218,12 @@ class DanalockLockCard extends HTMLElement {
     const confirming = this._confirmUntil > Date.now();
     const actionLabel = look.action === "unlock" ? (confirming ? "Tap again to unlock" : "Unlock") : look.action === "lock" ? "Lock" : "";
     const ring = 2 * Math.PI * 52;
-    const battery = this._config.show_battery && m.battery != null
-      ? `<span class="battery ${m.battery <= 20 ? "low" : ""}"><ha-icon icon="mdi:battery${m.battery >= 95 ? "" : "-" + Math.max(10, Math.round(m.battery / 10) * 10)}"></ha-icon>${m.battery}%</span>`
+    // attribute values are untrusted: coerce to a plain number before they reach the template
+    const level = m.battery == null ? NaN : Math.min(100, Math.max(0, Math.round(Number(m.battery))));
+    const battery = this._config.show_battery && Number.isFinite(level)
+      ? `<span class="battery ${level <= 20 ? "low" : ""}"><ha-icon icon="mdi:battery${level >= 95 ? "" : "-" + Math.max(10, Math.round(level / 10) * 10)}"></ha-icon>${level}%</span>`
       : "";
+    const labelHtml = this._escape(look.label); // the fallback label is the raw entity state
     const jammedExtra = m.kind === "jammed" ? `<button class="secondary" data-act="unlock">Unlock</button>` : "";
 
     this.shadowRoot.innerHTML = `
@@ -263,13 +266,13 @@ class DanalockLockCard extends HTMLElement {
           <span>${battery}<button class="icon-btn" data-refresh title="Check the lock now"><ha-icon icon="mdi:refresh"></ha-icon></button></span>
         </div>
         <div class="body ${m.command ? "busy" : ""}">
-          <button class="dial" ${look.action ? `data-act="${look.action}"` : "disabled"} aria-label="${look.label}${actionLabel ? " – " + actionLabel : ""}">
+          <button class="dial" ${look.action ? `data-act="${look.action}"` : "disabled"} aria-label="${labelHtml}${actionLabel ? " – " + actionLabel : ""}">
             <svg viewBox="0 0 120 120"><circle class="track" cx="60" cy="60" r="52"/>
               <circle class="bar" cx="60" cy="60" r="52" stroke-dasharray="${ring}" stroke-dashoffset="${m.command ? ring * (1 - progress) : look.tone === "off" ? ring : 0}"/></svg>
             <div class="face"><ha-icon icon="${look.icon}"></ha-icon></div>
           </button>
           <div class="info">
-            <span class="label">${look.label}</span>
+            <span class="label">${labelHtml}</span>
             ${detail ? `<span class="detail">${this._escape(detail)}</span>` : ""}
             <div class="buttons">
               ${look.action ? `<button class="main ${confirming ? "confirm" : ""}" data-act="${look.action}">${actionLabel}</button>` : ""}

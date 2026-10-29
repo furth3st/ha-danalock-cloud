@@ -36,7 +36,7 @@ async def async_get_config_entry_diagnostics(
     diag_data: Dict[str, Any] = {
         "entry": {
             "entry_id": entry.entry_id,
-            "title": entry.title,
+            # no "title": it is the Danalock account e-mail
             "version": entry.version,
             "domain": entry.domain,
             "source": entry.source,
