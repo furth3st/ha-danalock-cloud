@@ -63,19 +63,23 @@ Due to the nature of cloud-based control and the Danalock API:
 *   A Danalock V3 lock correctly paired with a Danabridge V3 that is connected to your network.
 *   Home Assistant **2024.12 or newer**.
 
-### Installation via HACS
+### Installation via HACS (or the Marketplace)
 
-1.  **Add Custom Repository:**
-    *   In HACS, go to "Integrations".
-    *   Click the three dots (⋮) in the top right corner and select "Custom repositories".
-    *   Enter the URL of this repository: `https://github.com/furth3st/ha-danalock-cloud`
-    *   Select `Integration` as the category.
-    *   Click "Add".
-2.  **Install Integration:**
-    *   Close the custom repositories dialog.
-    *   The "Danalock Cloud" integration should now appear in your HACS integrations list (you might need to search for it).
-    *   Click "Install" and follow the prompts.
-3.  **Restart Home Assistant:** After HACS completes the installation, restart Home Assistant as prompted.
+Danalock Cloud is in the default HACS catalog, so you can simply search for it. On Home Assistant 2026.11 and newer, HACS is built in as **Settings → Marketplace**; the steps are the same there.
+
+1.  In HACS (or the Marketplace), search for **Danalock Cloud**.
+2.  Click **Download** and follow the prompts.
+3.  **Restart Home Assistant** when asked.
+
+<details>
+<summary>Not showing up in the search yet? Add it as a custom repository</summary>
+
+1.  In HACS, click the three dots (⋮) in the top right corner and select "Custom repositories".
+2.  Enter the URL of this repository: `https://github.com/furth3st/ha-danalock-cloud`
+3.  Select `Integration` as the category and click "Add".
+4.  Search for "Danalock Cloud", download it, and restart Home Assistant.
+
+</details>
 
 ## Configuration
 

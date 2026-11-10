@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- README: installation now leads with searching for "Danalock Cloud" in HACS / the Marketplace (the integration is in the default catalog); the custom-repository steps are kept as a fallback.
+
 ## 1.4.1
 
 Security hardening, thanks to review feedback from @frenck.
